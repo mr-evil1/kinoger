@@ -30,12 +30,16 @@ def _is_challenge(page):
 
 
 def _wait_cf(page):
+    if not _is_challenge(page):
+        return
+    print(f'  CF-Challenge erkannt, warte...', flush=True)
     deadline = time.time() + WAIT_CF
     while time.time() < deadline and _is_challenge(page):
         time.sleep(1)
     if _is_challenge(page):
         raise RuntimeError('Cloudflare challenge not solved')
-    time.sleep(3)
+    print(f'  CF-Challenge gelöst', flush=True)
+    time.sleep(2)
 
 
 def _parse_entries(html, is_series=False):
@@ -131,6 +135,26 @@ def _fetch_all_pages(ctx, start_url, is_series=False, label=''):
     return items
 
 
+COOKIE_PATH = os.path.join(os.path.dirname(__file__), '..', 'cookies', 'kinoger.json')
+
+
+def _load_cookies(ctx):
+    if not os.path.exists(COOKIE_PATH):
+        print('Kein gespeicherter Cookie gefunden.')
+        return
+    try:
+        with open(COOKIE_PATH) as f:
+            saved = json.load(f)
+        cookies = [
+            {'name': k, 'value': v, 'domain': 'kinoger.com', 'path': '/'}
+            for k, v in saved.items() if v
+        ]
+        ctx.add_cookies(cookies)
+        print(f'Cookie geladen: {list(saved.keys())}')
+    except Exception as e:
+        print(f'Cookie laden FEHLER: {e}')
+
+
 def scrape():
     os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -149,6 +173,7 @@ def scrape():
             "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"
             "window.chrome={runtime:{}};"
         )
+        _load_cookies(ctx)
 
         data = {}
 
