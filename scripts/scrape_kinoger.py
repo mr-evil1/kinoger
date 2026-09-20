@@ -23,29 +23,6 @@ PAGES = {
 
 GENRE_SKIP = ('erwachsene', 'erotik', 'na-russkom', 'xxx')
 
-GENRES_STATIC = [
-    {'title': 'Action',        'url': BASE + '/main/action/'},
-    {'title': 'Abenteuer',     'url': BASE + '/main/abenteuer/'},
-    {'title': 'Animation',     'url': BASE + '/main/animation/'},
-    {'title': 'Biografie',     'url': BASE + '/main/biografie/'},
-    {'title': 'Drama',         'url': BASE + '/main/drama/'},
-    {'title': 'Fantasy',       'url': BASE + '/main/fantasy/'},
-    {'title': 'Geschichte',    'url': BASE + '/main/geschichte/'},
-    {'title': 'Horror',        'url': BASE + '/main/horror/'},
-    {'title': 'Komödie',       'url': BASE + '/main/komoedie/'},
-    {'title': 'Krimi',         'url': BASE + '/main/krimi/'},
-    {'title': 'Kriegsfilm',    'url': BASE + '/main/kriegsfilm/'},
-    {'title': 'Musik',         'url': BASE + '/main/musik/'},
-    {'title': 'Mystery',       'url': BASE + '/main/mystery/'},
-    {'title': 'Romance',       'url': BASE + '/main/romance/'},
-    {'title': 'Science-Fiction','url': BASE + '/main/science-fiction/'},
-    {'title': 'Sport',         'url': BASE + '/main/sport/'},
-    {'title': 'Thriller',      'url': BASE + '/main/thriller/'},
-    {'title': 'Western',       'url': BASE + '/main/western/'},
-    {'title': 'Dokumentarfilm','url': BASE + '/main/dokumentarfilm/'},
-    {'title': 'Familie',       'url': BASE + '/main/familie/'},
-]
-
 
 def _is_challenge(page):
     t = page.title().lower()
@@ -87,6 +64,18 @@ def _parse_entries(html, is_series=False):
             'mediatype': 'tvshow' if item_is_series else 'movie',
         })
     return items
+
+
+def _parse_next_page(html, current_url):
+    m = re.search(r'<a href="([^"]+)"[^>]*>\s*vorw', html, re.I)
+    if not m:
+        return None
+    href = m.group(1).strip()
+    if href.startswith('/'):
+        href = BASE + href
+    if href == current_url:
+        return None
+    return href
 
 
 def _parse_detail(html, url):
@@ -138,6 +127,28 @@ def _fetch_page(ctx, url):
     return html
 
 
+def _fetch_all_pages(ctx, start_url, is_series=False, label=''):
+    items = []
+    url = start_url
+    page_num = 1
+    seen_urls = set()
+    while url:
+        if url in seen_urls:
+            break
+        seen_urls.add(url)
+        try:
+            html = _fetch_page(ctx, url)
+            batch = _parse_entries(html, is_series=is_series)
+            items.extend(batch)
+            print(f'  {label} Seite {page_num}: {len(batch)} items (gesamt {len(items)})')
+            url = _parse_next_page(html, url)
+            page_num += 1
+        except Exception as e:
+            print(f'  {label} Seite {page_num} FEHLER: {e}')
+            break
+    return items
+
+
 def _enrich_with_details(ctx, items, label=''):
     for i, item in enumerate(items):
         try:
@@ -155,10 +166,9 @@ def _fetch_genre_pages(ctx, genres):
     result = {}
     for genre in genres:
         try:
-            html  = _fetch_page(ctx, genre['url'])
-            items = _parse_entries(html)
+            items = _fetch_all_pages(ctx, genre['url'], label=genre['title'])
             result[genre['url']] = items
-            print(f'  Genre {genre["title"]}: {len(items)} items')
+            print(f'  Genre {genre["title"]}: {len(items)} items gesamt')
         except Exception as e:
             print(f'  Genre {genre["title"]} FEHLER: {e}')
     return result
@@ -185,26 +195,32 @@ def scrape():
 
         data = {}
 
-        data['genres'] = GENRES_STATIC
-        print(f'Genres: {len(GENRES_STATIC)} (statisch)')
+        print('Lade Startseite für Genre-Liste...')
+        try:
+            home_html = _fetch_page(ctx, BASE + '/')
+            genres = _parse_genres(home_html)
+            print(f'Genres gefunden: {len(genres)}')
+        except Exception as e:
+            print(f'Genre-Parsing FEHLER: {e}')
+            genres = []
+        data['genres'] = genres
 
         for key, url in PAGES.items():
             print(f'Scraping {key}: {url}')
             try:
-                html  = _fetch_page(ctx, url)
-                is_s  = key == 'series'
-                items = _parse_entries(html, is_series=is_s)
+                is_s  = key in ('series', 'anime')
+                items = _fetch_all_pages(ctx, url, is_series=is_s, label=key)
                 if key == 'movies':
                     items = [i for i in items if i.get('mediatype') == 'movie']
                 items     = _enrich_with_details(ctx, items, key)
                 data[key] = items
-                print(f'  {key}: {len(items)} items')
+                print(f'  {key}: {len(items)} items gesamt')
             except Exception as e:
                 print(f'FEHLER {key}: {e}')
                 data[key] = []
 
-        print(f'Scrape Genres ({len(GENRES_STATIC)})...')
-        data['genre_data'] = _fetch_genre_pages(ctx, GENRES_STATIC)
+        print(f'Scrape Genres ({len(genres)})...')
+        data['genre_data'] = _fetch_genre_pages(ctx, genres)
 
         cookies = ctx.cookies()
         cf = {c['name']: c['value'] for c in cookies
