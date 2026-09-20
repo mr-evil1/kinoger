@@ -38,7 +38,7 @@ jobs:
         run: |
           git config user.email "scrapebot@github"
           git config user.name "scrapebot"
-          git add data/ cookies/
+          git add data/ cookies/ html/
           git diff --cached --quiet && echo "keine Aenderungen" && exit 0
           git commit -m "update kinoger data"
 
