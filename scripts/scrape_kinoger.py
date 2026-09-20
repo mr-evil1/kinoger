@@ -21,7 +21,7 @@ PAGES = {
     'anime':  BASE + '/main/anime/',
 }
 
-GENRE_SKIP = ('erwachsene', 'erotik', 'na-russkom', 'xxx')
+GENRE_SKIP = ()
 
 
 def _is_challenge(page):
