@@ -1,8 +1,8 @@
-name: Refresh Kinoger Cookie
+name: Scrape KinoGer
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 */4 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  refresh:
+  scrape:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -31,16 +31,16 @@ jobs:
           playwright install chromium
           playwright install-deps chromium
 
-      - name: Fetch cookie
-        run: xvfb-run --auto-servernum python scripts/fetch_cookie.py
+      - name: Scrape KinoGer
+        run: xvfb-run --auto-servernum python scripts/scrape_kinoger.py
 
-      - name: Commit cookie
+      - name: Commit data
         run: |
-          git config user.email "cookiebot@github"
-          git config user.name "cookiebot"
-          git add cookies/kinoger.json
-          git diff --cached --quiet && echo "no changes" && exit 0
-          git commit -m "chore: refresh kinoger cookie"
+          git config user.email "scrapebot@github"
+          git config user.name "scrapebot"
+          git add data/ cookies/
+          git diff --cached --quiet && echo "keine Aenderungen" && exit 0
+          git commit -m "update kinoger data"
 
           for i in 1 2 3 4 5; do
             git pull --rebase origin main && git push && echo "Push OK" && exit 0
