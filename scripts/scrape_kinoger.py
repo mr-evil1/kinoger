@@ -6,7 +6,6 @@ import time
 from playwright.sync_api import sync_playwright
 
 BASE        = 'https://kinoger.com'
-SERIES_PATH = '/main/serie/'
 OUT_DIR     = os.path.join(os.path.dirname(__file__), '..', 'data')
 TIMEOUT     = 45_000
 WAIT_CF     = 30
@@ -18,7 +17,7 @@ UA          = (
 PAGES = {
     'kino':   BASE + '/',
     'movies': BASE + '/',
-    'series': BASE + SERIES_PATH,
+    'series': BASE + '/main/serie/',
     'anime':  BASE + '/main/anime/',
 }
 
@@ -67,16 +66,37 @@ def _parse_entries(html, is_series=False):
     return items
 
 
+def _parse_detail(html, url):
+    be_codes = re.findall(r'kinoger\.be/v/([A-Za-z0-9]+)', html)
+    pw_codes = re.findall(r'kinoger\.pw/e/([A-Za-z0-9]+)', html)
+    filecode_be = be_codes[0] if be_codes else ''
+    filecode_pw = pw_codes[0] if pw_codes else ''
+
+    plot = ''
+    m = re.search(r'<!--dle_image_end-->(.*?)(?=<hr|<center|<div class="footercontrol"|<div class="footerbar")', html, re.S | re.I)
+    if not m:
+        m = re.search(r'<div[^>]*class="[^"]*content_text[^"]*"[^>]*>(.*?)(?=<div class="footercontrol"|<div class="footerbar")', html, re.S | re.I)
+    if m:
+        raw = re.sub(r'<!--.*?-->', '', m.group(1), flags=re.S)
+        raw = re.sub(r'<[^>]+>', '', raw)
+        plot = re.sub(r'\s+', ' ', raw).strip()
+
+    return {
+        'filecode_be': filecode_be,
+        'filecode_pw': filecode_pw,
+        'plot':        plot[:500],
+    }
+
+
 def _parse_genres(html):
-    skip = GENRE_SKIP
-    seen = set()
+    seen  = set()
     items = []
     for m in re.finditer(
         r'<li[^>]+class=["\']links["\'][^>]*>\s*<a\s+href="(/main/[^"]+)"[^>]*>(.*?)</a>',
         html, re.S | re.I
     ):
         href = m.group(1)
-        if any(s in href for s in skip) or href in seen:
+        if any(s in href for s in GENRE_SKIP) or href in seen:
             continue
         seen.add(href)
         name = re.sub(r'<[^>]+>', '', m.group(2)).strip()
@@ -95,12 +115,26 @@ def _fetch_page(ctx, url):
     return html
 
 
+def _enrich_with_details(ctx, items, label=''):
+    for i, item in enumerate(items):
+        try:
+            html   = _fetch_page(ctx, item['url'])
+            detail = _parse_detail(html, item['url'])
+            item.update(detail)
+            if i % 5 == 0:
+                print(f'  {label} {i+1}/{len(items)}: {item["title"][:40]}')
+        except Exception as e:
+            print(f'  Detail FEHLER {item["url"]}: {e}')
+    return items
+
+
 def _fetch_genre_pages(ctx, genres):
     result = {}
     for genre in genres:
         try:
             html  = _fetch_page(ctx, genre['url'])
             items = _parse_entries(html)
+            items = _enrich_with_details(ctx, items, genre['title'])
             result[genre['url']] = items
             print(f'  Genre {genre["title"]}: {len(items)} items')
         except Exception as e:
@@ -114,10 +148,7 @@ def scrape():
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=False,
-            args=[
-                '--no-sandbox',
-                '--disable-blink-features=AutomationControlled',
-            ],
+            args=['--no-sandbox', '--disable-blink-features=AutomationControlled'],
         )
         ctx = browser.new_context(
             user_agent=UA,
@@ -135,18 +166,19 @@ def scrape():
         for key, url in PAGES.items():
             print(f'Scraping {key}: {url}')
             try:
-                html  = _fetch_page(ctx, url)
-                is_s  = key == 'series'
-                items = _parse_entries(html, is_series=is_s)
+                html     = _fetch_page(ctx, url)
+                is_s     = key == 'series'
+                items    = _parse_entries(html, is_series=is_s)
                 if key == 'movies':
-                    items = [i for i in items if i['mediatype'] == 'movie']
+                    items = [i for i in items if i.get('mediatype') == 'movie']
+                items    = _enrich_with_details(ctx, items, key)
                 data[key] = items
-                print(f'  {len(items)} items')
+                print(f'  {key}: {len(items)} items mit Details')
 
                 if key == 'kino':
-                    genres = _parse_genres(html)
-                    print(f'  {len(genres)} Genres gefunden, scrape...')
-                    data['genres']     = genres
+                    genres = GENRES_STATIC
+                    print(f'  {len(genres)} Genres (statisch), scrape...')
+                    data['genres']     = [{'title': g['title'], 'url': g['url']} for g in genres]
                     data['genre_data'] = _fetch_genre_pages(ctx, genres)
 
             except Exception as e:
@@ -156,9 +188,6 @@ def scrape():
         cookies = ctx.cookies()
         cf = {c['name']: c['value'] for c in cookies
               if c['name'] in ('cf_clearance', 'PHPSESSID')}
-        data['_cookies'] = cf
-        data['_ts']      = int(time.time())
-
         browser.close()
 
     for key in ('kino', 'movies', 'series', 'anime', 'genres'):
@@ -171,14 +200,13 @@ def scrape():
         out = os.path.join(OUT_DIR, 'genre_data.json')
         with open(out, 'w', encoding='utf-8') as f:
             json.dump(data['genre_data'], f, ensure_ascii=False, indent=2)
-        print(f'Gespeichert: {out}')
 
     if cf:
         out = os.path.join(OUT_DIR, '..', 'cookies', 'kinoger.json')
         os.makedirs(os.path.dirname(out), exist_ok=True)
         with open(out, 'w') as f:
             json.dump(cf, f, indent=2)
-        print(f'Cookie gespeichert: {cf}')
+        print(f'Cookie: {cf}')
 
 
 if __name__ == '__main__':
