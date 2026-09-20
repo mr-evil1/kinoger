@@ -33,6 +33,7 @@ jobs:
           git config user.email "cookiebot@github"
           git config user.name "cookiebot"
           git add cookies/kinoger.json
-          git diff --cached --quiet && echo "no changes" || git commit -m "chore: refresh kinoger cookie"
+          git diff --cached --quiet && echo "no changes" && exit 0
+          git commit -m "chore: refresh kinoger cookie"
+          git pull --rebase origin main
           git push
-
