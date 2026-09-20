@@ -1,1 +1,38 @@
+name: Refresh Kinoger Cookie
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -y xvfb
+          pip install playwright
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: Fetch cookie
+        run: xvfb-run --auto-servernum python scripts/fetch_cookie.py
+
+      - name: Commit cookie
+        run: |
+          git config user.email "cookiebot@github"
+          git config user.name "cookiebot"
+          git add cookies/kinoger.json
+          git diff --cached --quiet && echo "no changes" || git commit -m "chore: refresh kinoger cookie"
+          git push
 
