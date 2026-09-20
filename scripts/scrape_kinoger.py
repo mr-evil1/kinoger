@@ -74,6 +74,7 @@ def _wait_cf(page):
     if _is_challenge(page):
         raise RuntimeError('Cloudflare challenge not solved')
     print('  CF-Challenge gelöst', flush=True)
+    page.wait_for_load_state('domcontentloaded', timeout=TIMEOUT)
     time.sleep(2)
 
 
@@ -181,7 +182,14 @@ def _slug(text):
     return re.sub(r'[^a-z0-9]+', '_', text.lower()).strip('_')
 
 
+def _is_cf_html(html):
+    return 'just a moment' in html[:500].lower() or 'cf_chl_opt' in html[:2000]
+
+
 def _save_html(name, html):
+    if _is_cf_html(html):
+        print(f'  {name}: CF-Challenge, nicht gespeichert.', flush=True)
+        return
     os.makedirs(HTML_DIR, exist_ok=True)
     path = os.path.join(HTML_DIR, name + '.html')
     with open(path, 'w', encoding='utf-8') as f:
@@ -190,7 +198,8 @@ def _save_html(name, html):
 
 def _fetch_page(ctx, url):
     page = ctx.new_page()
-    page.goto(url, wait_until='networkidle', timeout=TIMEOUT)
+    page.goto(url, wait_until='domcontentloaded', timeout=TIMEOUT)
+    page.wait_for_timeout(3000)
     _wait_cf(page)
     html = page.content()
     page.close()
