@@ -162,27 +162,26 @@ def scrape():
 
         data = {}
 
+        data['genres'] = GENRES_STATIC
+        print(f'Genres: {len(GENRES_STATIC)} (statisch)')
+
         for key, url in PAGES.items():
             print(f'Scraping {key}: {url}')
             try:
-                html     = _fetch_page(ctx, url)
-                is_s     = key == 'series'
-                items    = _parse_entries(html, is_series=is_s)
+                html  = _fetch_page(ctx, url)
+                is_s  = key == 'series'
+                items = _parse_entries(html, is_series=is_s)
                 if key == 'movies':
                     items = [i for i in items if i.get('mediatype') == 'movie']
-                items    = _enrich_with_details(ctx, items, key)
+                items     = _enrich_with_details(ctx, items, key)
                 data[key] = items
-                print(f'  {key}: {len(items)} items mit Details')
-
-                if key == 'kino':
-                    genres = GENRES_STATIC
-                    print(f'  {len(genres)} Genres (statisch), scrape...')
-                    data['genres']     = genres
-                    data['genre_data'] = _fetch_genre_pages(ctx, genres)
-
+                print(f'  {key}: {len(items)} items')
             except Exception as e:
                 print(f'FEHLER {key}: {e}')
                 data[key] = []
+
+        print(f'Scrape Genres ({len(GENRES_STATIC)})...')
+        data['genre_data'] = _fetch_genre_pages(ctx, GENRES_STATIC)
 
         cookies = ctx.cookies()
         cf = {c['name']: c['value'] for c in cookies
