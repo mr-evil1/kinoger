@@ -1,6 +1,6 @@
 # Scrape KinoGer
 
-Scrapt kinoger.com mit echtem Chromium (Cloudflare-Bypass) und speichert alle Daten als JSON ins Repo.
+
 
 [![Scrape KinoGer](https://github.com/mr-evil1/kinoger/actions/workflows/scrape_kinoger.yml/badge.svg)](https://github.com/mr-evil1/kinoger/actions/workflows/scrape_kinoger.yml)
 
