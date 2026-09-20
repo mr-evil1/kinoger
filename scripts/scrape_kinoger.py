@@ -21,7 +21,30 @@ PAGES = {
     'anime':  BASE + '/main/anime/',
 }
 
-GENRE_SKIP = ()
+GENRE_SKIP = ('erwachsene', 'erotik', 'na-russkom', 'xxx')
+
+GENRES_STATIC = [
+    {'title': 'Action',        'url': BASE + '/main/action/'},
+    {'title': 'Abenteuer',     'url': BASE + '/main/abenteuer/'},
+    {'title': 'Animation',     'url': BASE + '/main/animation/'},
+    {'title': 'Biografie',     'url': BASE + '/main/biografie/'},
+    {'title': 'Drama',         'url': BASE + '/main/drama/'},
+    {'title': 'Fantasy',       'url': BASE + '/main/fantasy/'},
+    {'title': 'Geschichte',    'url': BASE + '/main/geschichte/'},
+    {'title': 'Horror',        'url': BASE + '/main/horror/'},
+    {'title': 'Komödie',       'url': BASE + '/main/komoedie/'},
+    {'title': 'Krimi',         'url': BASE + '/main/krimi/'},
+    {'title': 'Kriegsfilm',    'url': BASE + '/main/kriegsfilm/'},
+    {'title': 'Musik',         'url': BASE + '/main/musik/'},
+    {'title': 'Mystery',       'url': BASE + '/main/mystery/'},
+    {'title': 'Romance',       'url': BASE + '/main/romance/'},
+    {'title': 'Science-Fiction','url': BASE + '/main/science-fiction/'},
+    {'title': 'Sport',         'url': BASE + '/main/sport/'},
+    {'title': 'Thriller',      'url': BASE + '/main/thriller/'},
+    {'title': 'Western',       'url': BASE + '/main/western/'},
+    {'title': 'Dokumentarfilm','url': BASE + '/main/dokumentarfilm/'},
+    {'title': 'Familie',       'url': BASE + '/main/familie/'},
+]
 
 
 def _is_challenge(page):
