@@ -134,7 +134,6 @@ def _fetch_genre_pages(ctx, genres):
         try:
             html  = _fetch_page(ctx, genre['url'])
             items = _parse_entries(html)
-            items = _enrich_with_details(ctx, items, genre['title'])
             result[genre['url']] = items
             print(f'  Genre {genre["title"]}: {len(items)} items')
         except Exception as e:
@@ -178,7 +177,7 @@ def scrape():
                 if key == 'kino':
                     genres = GENRES_STATIC
                     print(f'  {len(genres)} Genres (statisch), scrape...')
-                    data['genres']     = [{'title': g['title'], 'url': g['url']} for g in genres]
+                    data['genres']     = genres
                     data['genre_data'] = _fetch_genre_pages(ctx, genres)
 
             except Exception as e:
