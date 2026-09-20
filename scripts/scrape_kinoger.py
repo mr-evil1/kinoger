@@ -5,7 +5,7 @@ import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from playwright.sync_api import sync_playwright, Playwright
+from playwright.sync_api import sync_playwright
 
 BASE       = 'https://kinoger.com'
 OUT_DIR    = os.path.join(os.path.dirname(__file__), '..', 'data')
@@ -13,7 +13,7 @@ TIMEOUT    = 45_000
 WAIT_CF    = 30
 WORKERS    = 4
 UA         = (
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
 )
 
@@ -155,63 +155,26 @@ def _collect_all_page_urls(ctx, start_url, label=''):
     return urls
 
 
-def _fetch_all_pages_parallel(browser, start_url, is_series=False, label=''):
+def _fetch_all_pages(browser, start_url, is_series=False, label=''):
+    """Sequentiell — Playwright sync_api ist nicht thread-safe."""
     _log(f'  {label} sammle Seiten-URLs...')
-    ctx0 = _make_context(browser)
-    page_data = _collect_all_page_urls(ctx0, start_url, label=label)
-    ctx0.close()
-
-    all_items_by_index = {}
-    lock = threading.Lock()
-
-    def fetch_and_parse(idx_url_html):
-        idx, url, html = idx_url_html
-        try:
-            batch = _parse_entries(html, is_series=is_series)
-            with lock:
-                all_items_by_index[idx] = batch
-            _log(f'  {label} Seite {idx+1}: {len(batch)} items')
-        except Exception as e:
-            _log(f'  {label} Parse FEHLER Seite {idx+1}: {e}')
-            with lock:
-                all_items_by_index[idx] = []
-
-    with ThreadPoolExecutor(max_workers=WORKERS) as ex:
-        futs = [ex.submit(fetch_and_parse, (i, url, html)) for i, (url, html) in enumerate(page_data)]
-        for f in as_completed(futs):
-            pass
+    ctx = _make_context(browser)
+    try:
+        page_data = _collect_all_page_urls(ctx, start_url, label=label)
+    finally:
+        ctx.close()
 
     items = []
-    for i in sorted(all_items_by_index):
-        items.extend(all_items_by_index[i])
+    for idx, (url, html) in enumerate(page_data):
+        try:
+            batch = _parse_entries(html, is_series=is_series)
+            _log(f'  {label} Seite {idx+1}: {len(batch)} items')
+            items.extend(batch)
+        except Exception as e:
+            _log(f'  {label} Parse FEHLER Seite {idx+1}: {e}')
+
     _log(f'  {label}: {len(items)} items gesamt')
     return items
-
-
-def _fetch_genre_parallel(browser, genres):
-    result = {}
-    lock   = threading.Lock()
-
-    def fetch_genre(genre):
-        ctx = _make_context(browser)
-        try:
-            items = _fetch_all_pages_parallel(browser, genre['url'], label=genre['title'])
-            with lock:
-                result[genre['url']] = items
-            _log(f'  Genre {genre["title"]}: {len(items)} items')
-        except Exception as e:
-            _log(f'  Genre {genre["title"]} FEHLER: {e}')
-            with lock:
-                result[genre['url']] = []
-        finally:
-            ctx.close()
-
-    with ThreadPoolExecutor(max_workers=WORKERS) as ex:
-        futs = [ex.submit(fetch_genre, g) for g in genres]
-        for f in as_completed(futs):
-            pass
-
-    return result
 
 
 def scrape():
@@ -223,6 +186,7 @@ def scrape():
             args=['--no-sandbox', '--disable-blink-features=AutomationControlled'],
         )
 
+        # Genre-Liste von Startseite holen
         ctx0 = _make_context(browser)
         _log('Lade Startseite für Genre-Liste...')
         try:
@@ -232,15 +196,17 @@ def scrape():
         except Exception as e:
             _log(f'Genre-Parsing FEHLER: {e}')
             genres = []
-        ctx0.close()
+        finally:
+            ctx0.close()
 
         data = {'genres': genres}
 
+        # Hauptkategorien scrapen
         for key, url in PAGES.items():
             _log(f'Scraping {key}: {url}')
             try:
                 is_s      = key in ('series', 'anime')
-                items     = _fetch_all_pages_parallel(browser, url, is_series=is_s, label=key)
+                items     = _fetch_all_pages(browser, url, is_series=is_s, label=key)
                 if key == 'movies':
                     items = [i for i in items if i.get('mediatype') == 'movie']
                 data[key] = items
@@ -248,9 +214,20 @@ def scrape():
                 _log(f'FEHLER {key}: {e}')
                 data[key] = []
 
-        _log(f'Scrape Genres ({len(genres)}) parallel...')
-        data['genre_data'] = _fetch_genre_parallel(browser, genres)
+        # Genres sequentiell scrapen (kein Threading mit Playwright sync!)
+        _log(f'Scrape Genres ({len(genres)}) sequentiell...')
+        genre_data = {}
+        for genre in genres:
+            _log(f'  Genre: {genre["title"]}')
+            try:
+                items = _fetch_all_pages(browser, genre['url'], label=genre['title'])
+                genre_data[genre['url']] = items
+            except Exception as e:
+                _log(f'  Genre {genre["title"]} FEHLER: {e}')
+                genre_data[genre['url']] = []
+        data['genre_data'] = genre_data
 
+        # Cookies sichern
         ctx_final = _make_context(browser)
         cookies   = ctx_final.cookies()
         ctx_final.close()
@@ -258,6 +235,7 @@ def scrape():
               if c['name'] in ('cf_clearance', 'PHPSESSID')}
         browser.close()
 
+    # Daten speichern
     for key in ('kino', 'movies', 'series', 'anime', 'genres'):
         out = os.path.join(OUT_DIR, f'{key}.json')
         with open(out, 'w', encoding='utf-8') as f:
