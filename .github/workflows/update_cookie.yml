@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: refresh-cookie
+  group: kinoger-push
   cancel-in-progress: false
 
 jobs:
