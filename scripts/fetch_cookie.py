@@ -11,6 +11,12 @@ OUT_PATH = os.path.join(os.path.dirname(__file__), '..', 'cookies', 'kinoger.jso
 TIMEOUT  = 45_000
 WAIT     = 8
 
+UA = (
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+    'AppleWebKit/537.36 (KHTML, like Gecko) '
+    'Chrome/126.0.0.0 Safari/537.36'
+)
+
 
 def _is_challenge(page):
     return 'Verification' in page.title() or 'checking' in page.title().lower()
@@ -27,11 +33,7 @@ def fetch():
             ],
         )
         ctx = browser.new_context(
-            user_agent=(
-                'Mozilla/5.0 (X11; Linux x86_64) '
-                'AppleWebKit/537.36 (KHTML, like Gecko) '
-                'Chrome/126.0.0.0 Safari/537.36'
-            ),
+            user_agent=UA,
             viewport={'width': 1280, 'height': 720},
             locale='de-DE',
             timezone_id='Europe/Vienna',
@@ -75,4 +77,3 @@ def fetch():
 
 if __name__ == '__main__':
     fetch()
-
