@@ -207,7 +207,7 @@ def scrape():
     os.makedirs(OUT_DIR, exist_ok=True)
     os.makedirs(HTML_DIR, exist_ok=True)
 
-    session = cf_requests.Session()
+    session = cf_requests.Session(impersonate='chrome120')
     session.headers.update({'Accept-Language': 'de-DE,de;q=0.9'})
 
     data = {}
