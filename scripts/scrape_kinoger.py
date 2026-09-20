@@ -3,17 +3,11 @@ import os
 import re
 import time
 
-from playwright.sync_api import sync_playwright
+from curl_cffi import requests as cf_requests
 
-BASE        = 'https://kinoger.com'
-OUT_DIR     = os.path.join(os.path.dirname(__file__), '..', 'data')
-HTML_DIR    = os.path.join(os.path.dirname(__file__), '..', 'html')
-TIMEOUT     = 45_000
-WAIT_CF     = 60
-UA          = (
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-    '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
-)
+BASE     = 'https://kinoger.com'
+OUT_DIR  = os.path.join(os.path.dirname(__file__), '..', 'data')
+HTML_DIR = os.path.join(os.path.dirname(__file__), '..', 'html')
 
 PAGES = {
     'movies': BASE + '/',
@@ -57,25 +51,6 @@ FALLBACK_GENRES = [
 ]
 
 GENRE_SKIP = ()
-
-
-def _is_challenge(page):
-    t = page.title().lower()
-    return 'verification' in t or 'checking' in t or 'just a moment' in t
-
-
-def _wait_cf(page):
-    if not _is_challenge(page):
-        return
-    print('  CF-Challenge erkannt, warte...', flush=True)
-    deadline = time.time() + WAIT_CF
-    while time.time() < deadline and _is_challenge(page):
-        time.sleep(1)
-    if _is_challenge(page):
-        raise RuntimeError('Cloudflare challenge not solved')
-    print('  CF-Challenge gelöst', flush=True)
-    page.wait_for_load_state('domcontentloaded', timeout=TIMEOUT)
-    time.sleep(2)
 
 
 def _title_from_url(url):
@@ -183,30 +158,27 @@ def _slug(text):
 
 
 def _is_cf_html(html):
-    return 'just a moment' in html[:500].lower() or 'cf_chl_opt' in html[:2000]
+    return 'cf_chl_opt' in html[:2000] or 'just a moment' in html[:500].lower() or 'sicherheitsüberprüfung' in html[:1000].lower()
 
 
 def _save_html(name, html):
     if _is_cf_html(html):
         print(f'  {name}: CF-Challenge, nicht gespeichert.', flush=True)
-        return
+        return False
     os.makedirs(HTML_DIR, exist_ok=True)
     path = os.path.join(HTML_DIR, name + '.html')
     with open(path, 'w', encoding='utf-8') as f:
         f.write(html)
+    return True
 
 
-def _fetch_page(ctx, url):
-    page = ctx.new_page()
-    page.goto(url, wait_until='domcontentloaded', timeout=TIMEOUT)
-    page.wait_for_timeout(3000)
-    _wait_cf(page)
-    html = page.content()
-    page.close()
-    return html
+def _fetch_page(session, url):
+    r = session.get(url, timeout=30)
+    r.raise_for_status()
+    return r.text
 
 
-def _fetch_all_pages(ctx, start_url, is_series=False, label='', save_html=False):
+def _fetch_all_pages(session, start_url, is_series=False, label='', save_html=False):
     items = []
     url = start_url
     page_num = 1
@@ -216,7 +188,7 @@ def _fetch_all_pages(ctx, start_url, is_series=False, label='', save_html=False)
             break
         seen_urls.add(url)
         try:
-            html = _fetch_page(ctx, url)
+            html = _fetch_page(session, url)
             if save_html:
                 fname = _slug(label) + (f'_p{page_num}' if page_num > 1 else '')
                 _save_html(fname, html)
@@ -231,95 +203,55 @@ def _fetch_all_pages(ctx, start_url, is_series=False, label='', save_html=False)
     return items
 
 
-COOKIE_PATH = os.path.join(os.path.dirname(__file__), '..', 'cookies', 'kinoger.json')
-
-
-def _load_cookies(ctx):
-    if not os.path.exists(COOKIE_PATH):
-        print('Kein gespeicherter Cookie gefunden.')
-        return
-    try:
-        with open(COOKIE_PATH) as f:
-            saved = json.load(f)
-        cookies = [
-            {'name': k, 'value': v, 'domain': 'kinoger.com', 'path': '/'}
-            for k, v in saved.items() if v
-        ]
-        ctx.add_cookies(cookies)
-        print(f'Cookie geladen: {list(saved.keys())}')
-    except Exception as e:
-        print(f'Cookie laden FEHLER: {e}')
-
-
 def scrape():
     os.makedirs(OUT_DIR, exist_ok=True)
     os.makedirs(HTML_DIR, exist_ok=True)
 
-    with sync_playwright() as p:
-        headless = os.environ.get('PLAYWRIGHT_HEADLESS', '1') != '0'
-        browser = p.chromium.launch(
-            headless=headless,
-            args=['--no-sandbox', '--disable-blink-features=AutomationControlled'],
-        )
-        ctx = browser.new_context(
-            user_agent=UA,
-            viewport={'width': 1280, 'height': 720},
-            locale='de-DE',
-            timezone_id='Europe/Vienna',
-        )
-        ctx.add_init_script(
-            "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"
-            "window.chrome={runtime:{}};"
-        )
-        _load_cookies(ctx)
+    session = cf_requests.Session()
+    session.headers.update({'Accept-Language': 'de-DE,de;q=0.9'})
 
-        data = {}
+    data = {}
 
-        print('Lade Startseite für Genre-Liste...', flush=True)
+    print('Lade Startseite für Genre-Liste...', flush=True)
+    try:
+        home_html = _fetch_page(session, BASE + '/')
+        _save_html('home', home_html)
+        genres = _parse_genres(home_html)
+        print(f'Genres aus Seite: {len(genres)}', flush=True)
+    except Exception as e:
+        print(f'Genre-Parsing FEHLER: {e}', flush=True)
+        genres = []
+
+    if not genres:
+        print('Nutze Fallback-Genre-Liste.', flush=True)
+        genres = FALLBACK_GENRES
+
+    data['genres'] = genres
+
+    for key, url in PAGES.items():
+        print(f'Scraping {key}: {url}', flush=True)
         try:
-            home_html = _fetch_page(ctx, BASE + '/')
-            _save_html('home', home_html)
-            genres = _parse_genres(home_html)
-            print(f'Genres aus Seite: {len(genres)}', flush=True)
+            is_s  = key in ('series', 'anime')
+            items = _fetch_all_pages(session, url, is_series=is_s, label=key, save_html=True)
+            if key == 'movies':
+                items = [i for i in items if i.get('mediatype') == 'movie']
+            data[key] = items
+            print(f'  {key}: {len(items)} items gesamt', flush=True)
         except Exception as e:
-            print(f'Genre-Parsing FEHLER: {e}', flush=True)
-            genres = []
+            print(f'FEHLER {key}: {e}', flush=True)
+            data[key] = []
 
-        if not genres:
-            print('Nutze Fallback-Genre-Liste.', flush=True)
-            genres = FALLBACK_GENRES
-
-        data['genres'] = genres
-
-        for key, url in PAGES.items():
-            print(f'Scraping {key}: {url}', flush=True)
-            try:
-                is_s  = key in ('series', 'anime')
-                items = _fetch_all_pages(ctx, url, is_series=is_s, label=key, save_html=True)
-                if key == 'movies':
-                    items = [i for i in items if i.get('mediatype') == 'movie']
-                data[key] = items
-                print(f'  {key}: {len(items)} items gesamt', flush=True)
-            except Exception as e:
-                print(f'FEHLER {key}: {e}', flush=True)
-                data[key] = []
-
-        print(f'Scrape Genres ({len(genres)})...', flush=True)
-        genre_data = {}
-        for genre in genres:
-            try:
-                items = _fetch_all_pages(ctx, genre['url'], label=genre['title'], save_html=True)
-                genre_data[genre['url']] = items
-                print(f'  Genre {genre["title"]}: {len(items)} items gesamt', flush=True)
-            except Exception as e:
-                print(f'  Genre {genre["title"]} FEHLER: {e}', flush=True)
-                genre_data[genre['url']] = []
-        data['genre_data'] = genre_data
-
-        cookies = ctx.cookies()
-        cf = {c['name']: c['value'] for c in cookies
-              if c['name'] in ('cf_clearance', 'PHPSESSID')}
-        browser.close()
+    print(f'Scrape Genres ({len(genres)})...', flush=True)
+    genre_data = {}
+    for genre in genres:
+        try:
+            items = _fetch_all_pages(session, genre['url'], label=genre['title'], save_html=True)
+            genre_data[genre['url']] = items
+            print(f'  Genre {genre["title"]}: {len(items)} items gesamt', flush=True)
+        except Exception as e:
+            print(f'  Genre {genre["title"]} FEHLER: {e}', flush=True)
+            genre_data[genre['url']] = []
+    data['genre_data'] = genre_data
 
     for key in ('movies', 'series', 'anime', 'genres'):
         out = os.path.join(OUT_DIR, f'{key}.json')
@@ -331,13 +263,6 @@ def scrape():
         out = os.path.join(OUT_DIR, 'genre_data.json')
         with open(out, 'w', encoding='utf-8') as f:
             json.dump(data['genre_data'], f, ensure_ascii=False, indent=2)
-
-    if cf:
-        out = os.path.join(OUT_DIR, '..', 'cookies', 'kinoger.json')
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-        with open(out, 'w') as f:
-            json.dump(cf, f, indent=2)
-        print(f'Cookie: {cf}', flush=True)
 
 
 if __name__ == '__main__':
