@@ -1,9 +1,13 @@
-# kinoger
+# Scrape KinoGer
 
-Cookie-Refresher für kinoger.com — läuft automatisch alle 6 Stunden.
+Scrapt kinoger.com mit echtem Chromium (Cloudflare-Bypass) und speichert alle Daten als JSON ins Repo.
 
-[![Refresh Kinoger Cookie](https://github.com/mr-evil1/kinoger/actions/workflows/update_cookie.yml/badge.svg)](https://github.com/mr-evil1/kinoger/actions/workflows/update_cookie.yml)
+[![Scrape KinoGer](https://github.com/mr-evil1/kinoger/actions/workflows/scrape_kinoger.yml/badge.svg)](https://github.com/mr-evil1/kinoger/actions/workflows/scrape_kinoger.yml)
 
-## ▶ Cookie jetzt manuell aktualisieren
+## ▶ Jetzt manuell starten
 
-→ [Workflow öffnen](https://github.com/mr-evil1/kinoger/actions/workflows/update_cookie.yml) → **Run workflow** → **Run workflow**
+→ [Workflow öffnen](https://github.com/mr-evil1/kinoger/actions/workflows/scrape_kinoger.yml) → **Run workflow** → **Run workflow**
+
+---
+
+Läuft automatisch alle 4 Stunden.
