@@ -3,7 +3,7 @@ import os
 import re
 import time
 
-from curl_cffi import requests as cf_requests
+from playwright.sync_api import sync_playwright
 
 BASE     = 'https://kinoger.com'
 OUT_DIR  = os.path.join(os.path.dirname(__file__), '..', 'data')
@@ -157,12 +157,19 @@ def _slug(text):
     return re.sub(r'[^a-z0-9]+', '_', text.lower()).strip('_')
 
 
-def _is_cf_html(html):
-    return 'cf_chl_opt' in html[:2000] or 'just a moment' in html[:500].lower() or 'sicherheitsüberprüfung' in html[:1000].lower()
+def _is_waf_html(html):
+    h = html[:2000].lower()
+    return (
+        'cf_chl_opt' in h or
+        'just a moment' in h or
+        'sicherheitsüberprüfung' in h or
+        'hostadminonline-waf-verify' in h or
+        'verification...' in h
+    )
 
 
 def _save_html(name, html):
-    if _is_cf_html(html):
+    if _is_waf_html(html):
         print(f'  {name}: CF-Challenge, nicht gespeichert.', flush=True)
         return False
     os.makedirs(HTML_DIR, exist_ok=True)
@@ -172,13 +179,62 @@ def _save_html(name, html):
     return True
 
 
-def _fetch_page(session, url):
-    r = session.get(url, timeout=30)
-    r.raise_for_status()
-    return r.text
+INIT_SCRIPT = (
+    "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"
+    "window.chrome={runtime:{}};"
+    "const _origGetContext=HTMLCanvasElement.prototype.getContext;"
+    "HTMLCanvasElement.prototype.getContext=function(type,...args){"
+    "const ctx=_origGetContext.call(this,type,...args);"
+    "if((type==='webgl'||type==='experimental-webgl')&&ctx){"
+    "const _o=ctx.getExtension.bind(ctx);"
+    "ctx.getExtension=function(n){if(n==='WEBGL_debug_renderer_info')return null;return _o(n);};"
+    "}return ctx;};"
+)
 
 
-def _fetch_all_pages(session, start_url, is_series=False, label='', save_html=False):
+def _patch_waf(route, request):
+    try:
+        body = json.loads(request.post_data or '{}')
+        if 'botSignals' in body:
+            sigs = body['botSignals']
+            for k in ('software_gpu','chrome_missing','toString_tampered',
+                      'iframe_webdriver','selenium','phantom','headless_agent'):
+                sigs[k] = '0'
+        route.continue_(post_data=json.dumps(body))
+    except Exception:
+        route.continue_()
+
+
+def _is_challenge(page):
+    t = page.title().lower()
+    return 'verification' in t or 'checking' in t or 'just a moment' in t
+
+
+def _wait_waf(page):
+    if not _is_challenge(page):
+        return
+    print('  WAF-Challenge erkannt, warte...', flush=True)
+    deadline = time.time() + 60
+    while time.time() < deadline and _is_challenge(page):
+        time.sleep(1)
+    if _is_challenge(page):
+        raise RuntimeError('WAF challenge not solved')
+    print('  WAF-Challenge gelöst', flush=True)
+    time.sleep(2)
+
+
+def _fetch_page(ctx, url):
+    page = ctx.new_page()
+    page.route('**/hostadminonline-waf-verify', _patch_waf)
+    page.goto(url, wait_until='domcontentloaded', timeout=TIMEOUT)
+    page.wait_for_timeout(3000)
+    _wait_waf(page)
+    html = page.content()
+    page.close()
+    return html
+
+
+def _fetch_all_pages(ctx, start_url, is_series=False, label='', save_html=False):
     items = []
     url = start_url
     page_num = 1
@@ -188,7 +244,7 @@ def _fetch_all_pages(session, start_url, is_series=False, label='', save_html=Fa
             break
         seen_urls.add(url)
         try:
-            html = _fetch_page(session, url)
+            html = _fetch_page(ctx, url)
             if save_html:
                 fname = _slug(label) + (f'_p{page_num}' if page_num > 1 else '')
                 _save_html(fname, html)
@@ -203,18 +259,45 @@ def _fetch_all_pages(session, start_url, is_series=False, label='', save_html=Fa
     return items
 
 
+COOKIE_PATH = os.path.join(os.path.dirname(__file__), '..', 'cookies', 'kinoger.json')
+
+
+def _load_cookies(ctx):
+    if not os.path.exists(COOKIE_PATH):
+        print('Kein Cookie gefunden.', flush=True)
+        return
+    with open(COOKIE_PATH) as f:
+        saved = json.load(f)
+    cookies = [{'name': k, 'value': v, 'domain': 'kinoger.com', 'path': '/'}
+               for k, v in saved.items() if v]
+    ctx.add_cookies(cookies)
+    print(f'Cookie geladen: {list(saved.keys())}', flush=True)
+
+
 def scrape():
     os.makedirs(OUT_DIR, exist_ok=True)
     os.makedirs(HTML_DIR, exist_ok=True)
 
-    session = cf_requests.Session(impersonate='chrome120')
-    session.headers.update({'Accept-Language': 'de-DE,de;q=0.9'})
+    with sync_playwright() as p:
+        headless = os.environ.get('PLAYWRIGHT_HEADLESS', '1') != '0'
+        browser = p.chromium.launch(
+            headless=headless,
+            args=['--no-sandbox', '--disable-blink-features=AutomationControlled'],
+        )
+        ctx = browser.new_context(
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+            viewport={'width': 1280, 'height': 720},
+            locale='de-DE',
+            timezone_id='Europe/Vienna',
+        )
+        ctx.add_init_script(INIT_SCRIPT)
+        _load_cookies(ctx)
 
     data = {}
 
     print('Lade Startseite für Genre-Liste...', flush=True)
     try:
-        home_html = _fetch_page(session, BASE + '/')
+        home_html = _fetch_page(ctx, BASE + '/')
         _save_html('home', home_html)
         genres = _parse_genres(home_html)
         print(f'Genres aus Seite: {len(genres)}', flush=True)
@@ -232,7 +315,7 @@ def scrape():
         print(f'Scraping {key}: {url}', flush=True)
         try:
             is_s  = key in ('series', 'anime')
-            items = _fetch_all_pages(session, url, is_series=is_s, label=key, save_html=True)
+            items = _fetch_all_pages(ctx, url, is_series=is_s, label=key, save_html=True)
             if key == 'movies':
                 items = [i for i in items if i.get('mediatype') == 'movie']
             data[key] = items
@@ -245,13 +328,14 @@ def scrape():
     genre_data = {}
     for genre in genres:
         try:
-            items = _fetch_all_pages(session, genre['url'], label=genre['title'], save_html=True)
+            items = _fetch_all_pages(ctx, genre['url'], label=genre['title'], save_html=True)
             genre_data[genre['url']] = items
             print(f'  Genre {genre["title"]}: {len(items)} items gesamt', flush=True)
         except Exception as e:
             print(f'  Genre {genre["title"]} FEHLER: {e}', flush=True)
             genre_data[genre['url']] = []
-    data['genre_data'] = genre_data
+        data['genre_data'] = genre_data
+        browser.close()
 
     for key in ('movies', 'series', 'anime', 'genres'):
         out = os.path.join(OUT_DIR, f'{key}.json')
