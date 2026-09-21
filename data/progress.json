@@ -11,5 +11,9 @@
     "page": 14,
     "next_url": null,
     "done": true
+  },
+  "action": {
+    "page": 13,
+    "next_url": "https://kinoger.com/stream/action/page/13/"
   }
 }
