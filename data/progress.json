@@ -88,5 +88,10 @@
     "page": 2,
     "next_url": null,
     "done": true
+  },
+  "krieg": {
+    "page": 2,
+    "next_url": null,
+    "done": true
   }
 }
