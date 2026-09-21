@@ -58,5 +58,10 @@
     "page": 2,
     "next_url": null,
     "done": true
+  },
+  "familie": {
+    "page": 2,
+    "next_url": null,
+    "done": true
   }
 }
