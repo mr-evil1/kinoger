@@ -274,9 +274,12 @@ def _load_cookies(ctx):
     print(f'Cookie geladen: {list(saved.keys())}', flush=True)
 
 
+
 def scrape():
     os.makedirs(OUT_DIR, exist_ok=True)
     os.makedirs(HTML_DIR, exist_ok=True)
+
+    data = {}
 
     with sync_playwright() as p:
         headless = os.environ.get('PLAYWRIGHT_HEADLESS', '1') != '0'
@@ -293,48 +296,47 @@ def scrape():
         ctx.add_init_script(INIT_SCRIPT)
         _load_cookies(ctx)
 
-    data = {}
-
-    print('Lade Startseite für Genre-Liste...', flush=True)
-    try:
-        home_html = _fetch_page(ctx, BASE + '/')
-        _save_html('home', home_html)
-        genres = _parse_genres(home_html)
-        print(f'Genres aus Seite: {len(genres)}', flush=True)
-    except Exception as e:
-        print(f'Genre-Parsing FEHLER: {e}', flush=True)
-        genres = []
-
-    if not genres:
-        print('Nutze Fallback-Genre-Liste.', flush=True)
-        genres = FALLBACK_GENRES
-
-    data['genres'] = genres
-
-    for key, url in PAGES.items():
-        print(f'Scraping {key}: {url}', flush=True)
+        print('Lade Startseite für Genre-Liste...', flush=True)
         try:
-            is_s  = key in ('series', 'anime')
-            items = _fetch_all_pages(ctx, url, is_series=is_s, label=key, save_html=True)
-            if key == 'movies':
-                items = [i for i in items if i.get('mediatype') == 'movie']
-            data[key] = items
-            print(f'  {key}: {len(items)} items gesamt', flush=True)
+            home_html = _fetch_page(ctx, BASE + '/')
+            _save_html('home', home_html)
+            genres = _parse_genres(home_html)
+            print(f'Genres aus Seite: {len(genres)}', flush=True)
         except Exception as e:
-            print(f'FEHLER {key}: {e}', flush=True)
-            data[key] = []
+            print(f'Genre-Parsing FEHLER: {e}', flush=True)
+            genres = []
 
-    print(f'Scrape Genres ({len(genres)})...', flush=True)
-    genre_data = {}
-    for genre in genres:
-        try:
-            items = _fetch_all_pages(ctx, genre['url'], label=genre['title'], save_html=True)
-            genre_data[genre['url']] = items
-            print(f'  Genre {genre["title"]}: {len(items)} items gesamt', flush=True)
-        except Exception as e:
-            print(f'  Genre {genre["title"]} FEHLER: {e}', flush=True)
-            genre_data[genre['url']] = []
+        if not genres:
+            print('Nutze Fallback-Genre-Liste.', flush=True)
+            genres = FALLBACK_GENRES
+
+        data['genres'] = genres
+
+        for key, url in PAGES.items():
+            print(f'Scraping {key}: {url}', flush=True)
+            try:
+                is_s  = key in ('series', 'anime')
+                items = _fetch_all_pages(ctx, url, is_series=is_s, label=key, save_html=True)
+                if key == 'movies':
+                    items = [i for i in items if i.get('mediatype') == 'movie']
+                data[key] = items
+                print(f'  {key}: {len(items)} items gesamt', flush=True)
+            except Exception as e:
+                print(f'FEHLER {key}: {e}', flush=True)
+                data[key] = []
+
+        print(f'Scrape Genres ({len(genres)})...', flush=True)
+        genre_data = {}
+        for genre in genres:
+            try:
+                items = _fetch_all_pages(ctx, genre['url'], label=genre['title'], save_html=True)
+                genre_data[genre['url']] = items
+                print(f'  Genre {genre["title"]}: {len(items)} items gesamt', flush=True)
+            except Exception as e:
+                print(f'  Genre {genre["title"]} FEHLER: {e}', flush=True)
+                genre_data[genre['url']] = []
         data['genre_data'] = genre_data
+
         browser.close()
 
     for key in ('movies', 'series', 'anime', 'genres'):
