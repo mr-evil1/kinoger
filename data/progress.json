@@ -160,5 +160,10 @@
     "page": 2,
     "next_url": null,
     "done": true
+  },
+  "zeichentrick": {
+    "page": 2,
+    "next_url": null,
+    "done": true
   }
 }
