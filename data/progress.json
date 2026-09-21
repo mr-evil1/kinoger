@@ -13,5 +13,10 @@
     "page": 2,
     "next_url": null,
     "done": true
+  },
+  "action": {
+    "page": 2,
+    "next_url": null,
+    "done": true
   }
 }
