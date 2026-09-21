@@ -20,5 +20,10 @@
     "page": 6,
     "next_url": null,
     "done": true
+  },
+  "abenteuer": {
+    "page": 2,
+    "next_url": null,
+    "done": true
   }
 }
