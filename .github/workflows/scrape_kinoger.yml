@@ -34,22 +34,17 @@ jobs:
       - name: Fetch cookie
         run: xvfb-run --auto-servernum python scripts/fetch_cookie.py
 
-      - name: Scrape KinoGer
-        run: xvfb-run --auto-servernum python scripts/scrape_kinoger.py
-
-      - name: Commit data
+      - name: Git config
         run: |
           git config user.email "scrapebot@github"
           git config user.name "scrapebot"
-          git add html/ cookies/ data/
+
+      - name: Scrape KinoGer
+        run: xvfb-run --auto-servernum python scripts/scrape_kinoger.py
+
+      - name: Commit cookies
+        run: |
+          git add cookies/
           git diff --cached --quiet && echo "keine Aenderungen" && exit 0
-          git commit -m "update kinoger data"
-
-          for i in 1 2 3 4 5; do
-            git pull --rebase origin main && git push && echo "Push OK" && exit 0
-            echo "Retry $i failed, waiting..."
-            sleep $((i * 3))
-          done
-
-          echo "ERROR: Push failed after 5 retries" >&2
-          exit 1
+          git commit -m "update cookies [skip ci]"
+          git pull --rebase origin main && git push || true
