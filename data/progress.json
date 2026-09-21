@@ -15,5 +15,10 @@
   "action": {
     "page": 13,
     "next_url": "https://kinoger.com/stream/action/page/13/"
+  },
+  "animation": {
+    "page": 6,
+    "next_url": null,
+    "done": true
   }
 }
