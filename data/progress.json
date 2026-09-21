@@ -143,5 +143,10 @@
     "page": 2,
     "next_url": null,
     "done": true
+  },
+  "sci_fi": {
+    "page": 2,
+    "next_url": null,
+    "done": true
   }
 }
