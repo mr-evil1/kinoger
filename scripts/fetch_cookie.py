@@ -58,10 +58,10 @@ def fetch():
 
         cookies = ctx.cookies()
         wanted  = {c['name']: c['value'] for c in cookies
-                   if c['name'] in ('cf_clearance', 'PHPSESSID', '__ddgid_')}
+                   if c['domain'] in ('kinoger.com', '.kinoger.com')}
 
-        if 'cf_clearance' not in wanted:
-            print('ERROR: cf_clearance not found in cookies', file=sys.stderr)
+        if not wanted:
+            print('ERROR: keine Cookies gefunden', file=sys.stderr)
             print('Got:', [c['name'] for c in cookies], file=sys.stderr)
             browser.close()
             sys.exit(1)
