@@ -45,5 +45,10 @@
     "page": 2,
     "next_url": null,
     "done": true
+  },
+  "englisch": {
+    "page": 2,
+    "next_url": null,
+    "done": true
   }
 }
