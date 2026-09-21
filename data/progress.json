@@ -60,5 +60,10 @@
     "page": 2,
     "next_url": null,
     "done": true
+  },
+  "fantasy": {
+    "page": 2,
+    "next_url": null,
+    "done": true
   }
 }
