@@ -28,5 +28,10 @@
     "page": 2,
     "next_url": null,
     "done": true
+  },
+  "biography": {
+    "page": 2,
+    "next_url": null,
+    "done": true
   }
 }
