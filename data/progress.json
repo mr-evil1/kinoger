@@ -90,5 +90,10 @@
     "page": 2,
     "next_url": null,
     "done": true
+  },
+  "kom_die": {
+    "page": 2,
+    "next_url": null,
+    "done": true
   }
 }
