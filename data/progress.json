@@ -6,5 +6,9 @@
   "series": {
     "page": 13,
     "next_url": "https://kinoger.com/stream/serie/page/13/"
+  },
+  "anime": {
+    "page": 13,
+    "next_url": "https://kinoger.com/stream/anime/page/13/"
   }
 }
