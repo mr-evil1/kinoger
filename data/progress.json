@@ -75,5 +75,10 @@
     "page": 2,
     "next_url": null,
     "done": true
+  },
+  "history": {
+    "page": 2,
+    "next_url": null,
+    "done": true
   }
 }
