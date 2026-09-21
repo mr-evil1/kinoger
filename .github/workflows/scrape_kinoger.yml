@@ -25,16 +25,23 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install curl_cffi
+        run: |
+          sudo apt-get install -y xvfb
+          pip install playwright
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: Fetch cookie
+        run: xvfb-run --auto-servernum python scripts/fetch_cookie.py
 
       - name: Scrape KinoGer
-        run: python scripts/scrape_kinoger.py
+        run: xvfb-run --auto-servernum python scripts/scrape_kinoger.py
 
       - name: Commit data
         run: |
           git config user.email "scrapebot@github"
           git config user.name "scrapebot"
-          git add data/ html/
+          git add data/ html/ cookies/
           git diff --cached --quiet && echo "keine Aenderungen" && exit 0
           git commit -m "update kinoger data"
 
