@@ -2,5 +2,9 @@
   "movies": {
     "page": 13,
     "next_url": "https://kinoger.com/page/13/"
+  },
+  "series": {
+    "page": 13,
+    "next_url": "https://kinoger.com/stream/serie/page/13/"
   }
 }
