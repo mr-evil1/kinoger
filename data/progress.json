@@ -73,5 +73,10 @@
     "page": 2,
     "next_url": null,
     "done": true
+  },
+  "horror": {
+    "page": 2,
+    "next_url": null,
+    "done": true
   }
 }
