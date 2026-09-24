@@ -128,5 +128,11 @@
     "next_url": null,
     "done": true,
     "urls": []
+  },
+  "mystery": {
+    "page": 2,
+    "next_url": null,
+    "done": true,
+    "urls": []
   }
 }
