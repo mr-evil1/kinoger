@@ -32,5 +32,11 @@
     "next_url": null,
     "done": true,
     "urls": []
+  },
+  "biography": {
+    "page": 2,
+    "next_url": null,
+    "done": true,
+    "urls": []
   }
 }
