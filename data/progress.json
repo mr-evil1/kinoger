@@ -92,5 +92,11 @@
     "next_url": null,
     "done": true,
     "urls": []
+  },
+  "history": {
+    "page": 2,
+    "next_url": null,
+    "done": true,
+    "urls": []
   }
 }
