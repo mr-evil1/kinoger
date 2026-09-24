@@ -98,5 +98,11 @@
     "next_url": null,
     "done": true,
     "urls": []
+  },
+  "krimi": {
+    "page": 2,
+    "next_url": null,
+    "done": true,
+    "urls": []
   }
 }
