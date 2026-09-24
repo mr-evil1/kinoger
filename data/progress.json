@@ -194,5 +194,11 @@
     "next_url": null,
     "done": true,
     "urls": []
+  },
+  "zeichentrick": {
+    "page": 2,
+    "next_url": null,
+    "done": true,
+    "urls": []
   }
 }
