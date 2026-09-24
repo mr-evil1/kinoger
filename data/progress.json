@@ -176,5 +176,11 @@
     "next_url": null,
     "done": true,
     "urls": []
+  },
+  "thriller": {
+    "page": 2,
+    "next_url": null,
+    "done": true,
+    "urls": []
   }
 }
