@@ -26,5 +26,11 @@
     "next_url": null,
     "done": true,
     "urls": []
+  },
+  "abenteuer": {
+    "page": 2,
+    "next_url": null,
+    "done": true,
+    "urls": []
   }
 }
