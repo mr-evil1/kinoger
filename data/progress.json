@@ -3,5 +3,10 @@
     "page": 3,
     "next_url": null,
     "done": true
+  },
+  "series": {
+    "page": 2,
+    "next_url": null,
+    "done": true
   }
 }
